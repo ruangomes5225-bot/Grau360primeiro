@@ -1,0 +1,55 @@
+name: Compilar Grau 360
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  DEVKITXENON: /home/runner/xenon
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 240
+    steps:
+      - name: Baixar o projeto
+        uses: actions/checkout@v4
+
+      - name: Instalar dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential flex bison texinfo \
+            libgmp-dev libmpfr-dev libmpc-dev libncurses-dev libelf-dev \
+            libssl-dev zlib1g-dev wget git
+
+      - name: Cache da toolchain
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/xenon
+          key: xenon-toolchain-v1
+
+      - name: Compilar toolchain e libxenon (so na primeira vez, demora)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p $DEVKITXENON
+          git clone --depth 1 https://github.com/Free60Project/libxenon.git /tmp/libxenon
+          cd /tmp/libxenon/toolchain
+          ./build-xenon-toolchain toolchain
+          export PATH=$DEVKITXENON/bin:$DEVKITXENON/usr/bin:$PATH
+          cd /tmp/libxenon/libxenon
+          make
+          make install
+
+      - name: Compilar o jogo
+        run: |
+          export PATH=$DEVKITXENON/bin:$DEVKITXENON/usr/bin:$PATH
+          make
+
+      - name: Guardar o resultado
+        uses: actions/upload-artifact@v4
+        with:
+          name: grau360
+          path: |
+            grau360.elf
+            grau360.elf32
